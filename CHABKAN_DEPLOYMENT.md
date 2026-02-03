@@ -6,24 +6,32 @@
 - رمز دیتابیس و JWT را **فقط در Environment Variables پنل چابکان** تنظیم کنید
 - از رمزهای قوی و تصادفی برای پروداکشن استفاده کنید
 
-## متغیرهای محیطی مورد نیاز در چابکان
+## فرآیند خودکار چابکان
 
-برای سرویس NestJS/Docker، این متغیرها را در پنل چابکان تنظیم کنید:
+طبق [مستندات چابکان](https://docs.chabokan.net/features/console/)، **نصب پکیج‌ها و دستورات دیپلوی به صورت خودکار اجرا می‌شوند** — نیازی به اجرای دستی `npm install` در کنسول نیست.
+
+### Hook برای Migration دیتابیس
+
+فایل `backend/chabok-pre-start.sh` قبل از هر اجرای برنامه، به صورت خودکار `prisma migrate deploy` را اجرا می‌کند. نیازی به اجرای دستی migration در کنسول نیست.
+
+## متغیرهای محیطی مورد نیاز
+
+برای سرویس Nest در پنل چابکان تنظیم کنید:
 
 | متغیر | توضیح |
 |-------|-------|
-| `DATABASE_URL` | رشته اتصال PostgreSQL به فرمت: `postgresql://USER:PASSWORD@HOST:PORT/DATABASE` |
-| `PORT` | پورت سرویس (معمولاً خودکار تنظیم میشود) |
-| `FRONTEND_URL` | آدرس فرانت‌اند (مثال: `https://yourdomain.com`) |
+| `DATABASE_URL` | رشته اتصال PostgreSQL: `postgresql://USER:PASSWORD@HOST:PORT/DATABASE` |
+| `PORT` | پورت سرویس (معمولاً خودکار) |
+| `FRONTEND_URL` | آدرس فرانت‌اند (بعد از deploy) |
 | `JWT_SECRET` | کلید رمزنگاری JWT |
 | `JWT_REFRESH_SECRET` | کلید refresh token |
 
-اطلاعات اتصال PostgreSQL را از پنل سرویس PostgreSQL چابکان (hub.chabokan.net) دریافت کنید.
+اطلاعات اتصال را از پنل PostgreSQL چابکان دریافت کنید.
 
 ## روش‌های استقرار
 
-- **CLI:** `chabok login` و سپس `chabok deploy`
-- **Git:** clone از repository و ریستارت سرویس
-- **FTP:** برای پروژه‌های بزرگتر از 100MB
+- **CLI (پیشنهادی):** `chabok login` → `cd backend` → `chabok deploy`
+- **Git:** clone و ریستارت سرویس
+- **FTP:** برای پروژه‌های بیش از 100MB
 
-مستندات کامل: https://docs.chabokan.net/
+مستندات: https://docs.chabokan.net/
