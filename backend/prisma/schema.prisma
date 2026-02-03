@@ -1,0 +1,293 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  USER
+  ADMIN
+}
+
+enum TransactionType {
+  DEPOSIT
+  WITHDRAWAL
+  TICKET_PURCHASE
+  CASHBACK
+  PRIZE
+  REFERRAL_BONUS
+}
+
+enum TransactionStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+enum LotteryStatus {
+  UPCOMING
+  ACTIVE
+  DRAWING
+  COMPLETED
+  CANCELLED
+}
+
+enum WheelPrizeType {
+  CASH
+  CHANCE
+  GOLD
+  TICKET
+}
+
+enum SlideMode {
+  LIVE
+  AUTO
+}
+
+model User {
+  id            String    @id @default(uuid())
+  email         String?   @unique
+  phone         String?   @unique
+  password      String
+  firstName     String?
+  lastName      String?
+  role          UserRole  @default(USER)
+  referralCode String    @unique @default(uuid())
+  referredBy    String?
+  isActive      Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  wallet        Wallet?
+  transactions  Transaction[]
+  tickets       Ticket[]
+  chances       Chance[]
+  lotteryEntries LotteryEntry[]
+  wheelSpins    WheelSpin[]
+  slideGames    SlideGame[]
+  referrals     Referral[] @relation("Referrer")
+  referredByUser User?     @relation("Referrer", fields: [referredBy], references: [id])
+  referredUsers User[]     @relation("Referrer")
+  referredAs    Referral[] @relation("Referred")
+
+  @@index([email])
+  @@index([phone])
+  @@index([referralCode])
+}
+
+model Wallet {
+  id        String   @id @default(uuid())
+  userId    String   @unique
+  balance   Decimal  @default(0) @db.Decimal(15, 2)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model Transaction {
+  id          String            @id @default(uuid())
+  userId      String
+  type        TransactionType
+  amount      Decimal           @db.Decimal(15, 2)
+  status      TransactionStatus @default(PENDING)
+  description String?
+  metadata    Json?
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([type])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model Ticket {
+  id            String   @id @default(uuid())
+  userId        String
+  lotteryId     String?
+  price         Decimal  @db.Decimal(15, 2)
+  discount      Decimal  @default(0) @db.Decimal(5, 2)
+  finalPrice    Decimal  @db.Decimal(15, 2)
+  chanceGranted Boolean  @default(true)
+  cashbackGiven Boolean  @default(false)
+  createdAt     DateTime @default(now())
+
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lottery Lottery? @relation(fields: [lotteryId], references: [id])
+
+  @@index([userId])
+  @@index([lotteryId])
+  @@index([createdAt])
+}
+
+model Chance {
+  id          String    @id @default(uuid())
+  userId      String
+  source      String    // "TICKET", "REFERRAL", "PRIZE"
+  sourceId    String?   // ID of ticket, referral, etc.
+  used        Boolean   @default(false)
+  usedFor     String?   // "WHEEL", "LOTTERY", "SLIDE"
+  usedAt      DateTime?
+  expiresAt   DateTime?
+  createdAt   DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([used])
+  @@index([source])
+}
+
+model Lottery {
+  id          String        @id @default(uuid())
+  title       String
+  description String?
+  status      LotteryStatus @default(UPCOMING)
+  startDate   DateTime
+  endDate     DateTime
+  drawDate    DateTime?
+  maxEntries  Int?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  entries     LotteryEntry[]
+  tickets     Ticket[]
+  prizes      Prize[]
+
+  @@index([status])
+  @@index([startDate])
+  @@index([endDate])
+}
+
+model LotteryEntry {
+  id          String   @id @default(uuid())
+  lotteryId  String
+  userId     String
+  rank       Int?
+  prizeId    String?
+  chancesUsed Int     @default(5)
+  createdAt   DateTime @default(now())
+
+  lottery Lottery @relation(fields: [lotteryId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  prize   Prize?  @relation(fields: [prizeId], references: [id])
+
+  @@unique([lotteryId, userId])
+  @@index([lotteryId])
+  @@index([userId])
+  @@index([rank])
+}
+
+model Prize {
+  id          String   @id @default(uuid())
+  lotteryId   String?
+  type        String   // "CASH", "CAR", "GOLD", "CHANCE"
+  name        String
+  description String?
+  value       Decimal? @db.Decimal(15, 2)
+  rankFrom    Int?
+  rankTo      Int?
+  quantity    Int?
+  createdAt   DateTime @default(now())
+
+  lottery      Lottery?      @relation(fields: [lotteryId], references: [id])
+  lotteryEntries LotteryEntry[]
+
+  @@index([lotteryId])
+  @@index([type])
+}
+
+model WheelPrize {
+  id          String        @id @default(uuid())
+  name        String
+  type        WheelPrizeType
+  value       Decimal      @db.Decimal(15, 2)
+  probability Decimal      @db.Decimal(5, 4) // 0.0000 to 1.0000
+  isActive    Boolean      @default(true)
+  order       Int
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  spins       WheelSpin[]
+
+  @@index([isActive])
+  @@index([order])
+}
+
+model WheelSpin {
+  id        String   @id @default(uuid())
+  userId   String
+  prizeId  String?
+  chancesUsed Int    @default(2)
+  result   Json?     // Prize details
+  createdAt DateTime @default(now())
+
+  user  User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  prize WheelPrize? @relation(fields: [prizeId], references: [id])
+
+  @@index([userId])
+  @@index([createdAt])
+}
+
+model SlideGame {
+  id          String    @id @default(uuid())
+  userId      String?
+  mode        SlideMode @default(AUTO)
+  targetNumber Int?
+  userNumber  Int?
+  isWinner    Boolean   @default(false)
+  isPublic    Boolean   @default(true)
+  chancesUsed Int       @default(1)
+  createdAt   DateTime  @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([mode])
+  @@index([isWinner])
+  @@index([createdAt])
+}
+
+model Referral {
+  id            String   @id @default(uuid())
+  referrerId    String
+  referredId    String   @unique
+  referralCode  String
+  ipAddress     String?
+  deviceFingerprint String?
+  isActive      Boolean  @default(true)
+  chanceGranted Boolean  @default(false)
+  createdAt     DateTime @default(now())
+
+  referrer User @relation("Referrer", fields: [referrerId], references: [id], onDelete: Cascade)
+  referred User @relation("Referred", fields: [referredId], references: [id], onDelete: Cascade)
+
+  @@unique([referrerId, referredId])
+  @@index([referrerId])
+  @@index([referredId])
+  @@index([referralCode])
+  @@index([ipAddress])
+}
+
+model AdminSettings {
+  id          String   @id @default(uuid())
+  key         String   @unique
+  value       Json
+  description String?
+  updatedAt   DateTime @updatedAt
+  updatedBy   String?
+
+  @@index([key])
+}
